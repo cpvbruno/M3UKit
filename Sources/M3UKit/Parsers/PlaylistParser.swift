@@ -25,155 +25,156 @@ import Foundation
 
 /// A class to parse `Playlist` objects from a `PlaylistSource`.
 public final class PlaylistParser: Parser {
-  enum ParsingError: LocalizedError {
-    case invalidSource
+    enum ParsingError: LocalizedError {
+        case invalidSource
 
-    var errorDescription: String? {
-      "The playlist is invalid"
-    }
-  }
-
-  /// Create a new parser.
-  public init() {}
-
-  /// Parse a playlist.
-  /// - Parameter input: source.
-  /// - Returns: playlist.
-  public func parse(_ input: PlaylistSource) throws -> Playlist {
-    let rawString = try extractRawString(from: input)
-
-    var medias: [Playlist.Media] = []
-
-    let metadataParser = MediaMetadataParser()
-    var lastMetadataLine: String?
-    var lastURL: URL?
-    var mediaMetadataParsingError: Error?
-    var lineNumber = 0
-
-    rawString.enumerateLines { line, stop in
-      if metadataParser.isInfoLine(line) {
-        lastMetadataLine = line
-      } else if let url = URL(string: line) {
-        lastURL = url
-      }
-
-      if let metadataLine = lastMetadataLine, let url = lastURL {
-        do {
-          let metadata = try metadataParser.parse((lineNumber, metadataLine))
-          medias.append(.init(metadata: metadata, url: url))
-          lastMetadataLine = nil
-          lastURL = nil
-        } catch {
-          mediaMetadataParsingError = error
-          stop = true
+        var errorDescription: String? {
+            "The playlist is invalid"
         }
-      }
-
-      lineNumber += 1
     }
 
-    if let error = mediaMetadataParsingError {
-      throw error
-    }
+    /// Create a new parser.
+    public init() {}
 
-    return Playlist(medias: medias)
-  }
+    /// Parse a playlist.
+    /// - Parameter input: source.
+    /// - Returns: playlist.
+    public func parse(_ input: PlaylistSource) throws -> Playlist {
+        let rawString = try extractRawString(from: input)
 
-  /// Walk over a playlist and return its medias one-by-one.
-  /// - Parameters:
-  ///   - input: source.
-  ///   - handler: Handler to be called with the parsed medias.
-  public func walk(
-    _ input: PlaylistSource,
-    handler: @escaping (Playlist.Media) -> Void
-  ) throws {
-    let rawString = try extractRawString(from: input)
+        var medias: [Playlist.Media] = []
 
-    let metadataParser = MediaMetadataParser()
-    var lastMetadataLine: String?
-    var lastURL: URL?
-    var mediaMetadataParsingError: Error?
-    var lineNumber = 0
+        let metadataParser = MediaMetadataParser()
+        var lastMetadataLine: String?
+        var lastURL: URL?
+        var mediaMetadataParsingError: Error?
+        var lineNumber = 0
 
-    rawString.enumerateLines { line, stop in
-      if metadataParser.isInfoLine(line) {
-        lastMetadataLine = line
-      } else if let url = URL(string: line) {
-        lastURL = url
-      }
+        rawString.enumerateLines { line, stop in
+            if metadataParser.isInfoLine(line) {
+                lastMetadataLine = line
+            } else if let url = URL(string: line) {
+                lastURL = url
+            }
 
-      if let metadataLine = lastMetadataLine, let url = lastURL {
-        do {
-          let metadata = try metadataParser.parse((lineNumber, metadataLine))
-          handler(.init(metadata: metadata, url: url))
-          lastMetadataLine = nil
-          lastURL = nil
-        } catch {
-          mediaMetadataParsingError = error
-          stop = true
+            if let metadataLine = lastMetadataLine, let url = lastURL {
+                do {
+                    let metadata = try metadataParser.parse((lineNumber, metadataLine))
+                    medias.append(.init(metadata: metadata, url: url))
+                    lastMetadataLine = nil
+                    lastURL = nil
+                } catch {
+                    mediaMetadataParsingError = error
+                    stop = true
+                }
+            }
+
+            lineNumber += 1
         }
-      }
-      lineNumber += 1
-    }
 
-    if let error = mediaMetadataParsingError {
-      throw error
-    }
-  }
-
-  /// Parse a playlist on a queue with a completion handler.
-  /// - Parameters:
-  ///   - input: source.
-  ///   - processingQueue: queue to perform parsing on. Defaults to `.global(qos: .background)`
-  ///   - callbackQueue: queue to call callback on. Defaults to `.main`
-  ///   - completion: completion handler to call with the result.
-  public func parse(
-    _ input: PlaylistSource,
-    processingQueue: DispatchQueue = .global(qos: .background),
-    callbackQueue: DispatchQueue = .main,
-    completion: @escaping (Result<Playlist, Error>) -> Void
-  ) {
-    processingQueue.async {
-      do {
-        let playlist = try self.parse(input)
-        callbackQueue.async {
-          completion(.success(playlist))
+        if let error = mediaMetadataParsingError {
+            throw error
         }
-      } catch {
-        callbackQueue.async {
-          completion(.failure(error))
+
+        return Playlist(medias: medias)
+    }
+
+    /// Walk over a playlist and return its medias one-by-one.
+    /// - Parameters:
+    ///   - input: source.
+    ///   - handler: Handler to be called with the parsed medias.
+    public func walk(
+        _ input: PlaylistSource,
+        handler: @escaping (Playlist.Media) -> Void
+    ) throws {
+        let rawString = try extractRawString(from: input)
+
+        let metadataParser = MediaMetadataParser()
+        var lastMetadataLine: String?
+        var lastURL: URL?
+        var mediaMetadataParsingError: Error?
+        var lineNumber = 0
+
+        rawString.enumerateLines { line, stop in
+            if metadataParser.isInfoLine(line) {
+                lastMetadataLine = line
+            } else if let url = URL(string: line) {
+                lastURL = url
+            }
+
+            if let metadataLine = lastMetadataLine, let url = lastURL {
+                do {
+                    let metadata = try metadataParser.parse((lineNumber, metadataLine))
+                    handler(.init(metadata: metadata, url: url))
+                    lastMetadataLine = nil
+                    lastURL = nil
+                } catch {
+                    mediaMetadataParsingError = error
+                    stop = true
+                }
+            }
+            lineNumber += 1
         }
-      }
-    }
-  }
 
-  @available(iOS 15, tvOS 15, macOS 12, watchOS 8, *)
-  /// Parse a playlist.
-  /// - Parameter input: source.
-  /// - Parameter priority: Processing task priority. Defaults to `.background`
-  /// - Returns: playlist.
-  public func parse(
-    _ input: PlaylistSource,
-    priority: TaskPriority = .background
-  ) async throws -> Playlist {
-    let processingTask = Task(priority: priority) { () -> Playlist in
-      let playlist = try self.parse(input)
-      return playlist
+        if let error = mediaMetadataParsingError {
+            throw error
+        }
     }
-    return try await processingTask.value
-  }
 
-  // MARK: - Helpers
+    /// Parse a playlist on a queue with a completion handler.
+    /// - Parameters:
+    ///   - input: source.
+    ///   - processingQueue: queue to perform parsing on. Defaults to `.global(qos: .background)`
+    ///   - callbackQueue: queue to call callback on. Defaults to `.main`
+    ///   - completion: completion handler to call with the result.
+    public func parse(
+        _ input: PlaylistSource,
+        processingQueue: DispatchQueue = .global(qos: .background),
+        callbackQueue: DispatchQueue = .main,
+        completion: @escaping (Result<Playlist, Error>) -> Void
+    ) {
+        processingQueue.async {
+            do {
+                let playlist = try self.parse(input)
+                callbackQueue.async {
+                    completion(.success(playlist))
+                }
+            } catch {
+                callbackQueue.async {
+                    completion(.failure(error))
+                }
+            }
+        }
+    }
 
-  private func extractRawString(from input: PlaylistSource) throws -> String {
-    let filePrefix = "#EXTM3U"
-    guard var rawString = input.rawString else {
-      throw ParsingError.invalidSource
+    @available(iOS 15, tvOS 15, macOS 12, watchOS 8, *)
+    /// Parse a playlist.
+    /// - Parameter input: source.
+    /// - Parameter priority: Processing task priority. Defaults to `.background`
+    /// - Returns: playlist.
+    public func parse(
+        _ input: PlaylistSource,
+        priority: TaskPriority = .background
+    ) async throws -> Playlist {
+        let processingTask = Task(priority: priority) { () -> Playlist in
+            let playlist = try self.parse(input)
+            return playlist
+        }
+        return try await processingTask.value
     }
-    guard rawString.starts(with: filePrefix) else {
-      throw ParsingError.invalidSource
+
+    // MARK: - Helpers
+
+    private func extractRawString(from input: PlaylistSource) throws -> String {
+        let filePrefix = "#EXTM3U"
+        guard var rawString = input.rawString else {
+            throw ParsingError.invalidSource
+        }
+        // This needs to be refactored ASAP
+        guard rawString.prefix(8).contains(filePrefix) else {
+            throw ParsingError.invalidSource
+        }
+        rawString.removeFirst(filePrefix.count)
+        return rawString
     }
-    rawString.removeFirst(filePrefix.count)
-    return rawString
-  }
 }
