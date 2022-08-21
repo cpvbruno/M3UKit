@@ -47,13 +47,9 @@ final class MediaMetadataParser: Parser {
   }
 
   func extractDuration(_ input: (line: Int, rawString: String)) throws -> Int {
-    guard
-      let match = durationRegex.firstMatch(in: input.rawString),
-      let duration = Int(match)
-    else {
-      throw ParsingError.missingDuration(input.line, input.rawString)
-    }
-    return duration
+      let match = durationRegex.firstMatch(in: input.rawString) ?? "0"
+      let duration = Int(match) ?? 0
+      return duration
   }
 
   func extractName(_ input: String) -> String {
